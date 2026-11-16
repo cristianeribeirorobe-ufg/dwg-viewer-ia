@@ -1,0 +1,18 @@
+{
+  "name": "dwg-viewer-ia",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Visualizador Web de arquivos DWG/DXF com cálculo de áreas",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mlightcad/libredwg-web": "0.9.0"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
+}

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Visualizador Web de arquivos DWG/DXF com cálculo de área de polígonos." />
+    <title>Visualizador DWG</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230ea5e9'/%3E%3Cpath d='M7 23V9h10l8 7-8 7z' fill='none' stroke='white' stroke-width='2.5' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="6" /><path d="M7 23V9h10l8 7-8 7z" /></svg>
+        <span>Visualizador DWG</span>
+      </div>
+      <div class="file-name" id="fileName">Nenhum arquivo carregado</div>
+      <div class="actions">
+        <label class="btn primary" title="Abrir arquivo DWG ou DXF">
+          <svg viewBox="0 0 24 24"><path d="M4 20h16M12 4v12m0-12-5 5m5-5 5 5" /></svg>
+          <span>Abrir arquivo</span>
+          <input id="fileInput" type="file" accept=".dwg,.dxf" hidden />
+        </label>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="stage" id="stage">
+        <canvas id="canvas"></canvas>
+
+        <div class="toolbar" role="toolbar" aria-label="Controles de zoom">
+          <button id="zoomIn" title="Aproximar (+)" aria-label="Aproximar"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg></button>
+          <button id="zoomOut" title="Afastar (−)" aria-label="Afastar"><svg viewBox="0 0 24 24"><path d="M5 12h14" /></svg></button>
+          <button id="zoomFit" title="Ajustar à tela (F)" aria-label="Ajustar à tela"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg></button>
+          <span class="sep"></span>
+          <button id="toggleText" class="on" title="Mostrar/ocultar textos" aria-label="Textos"><svg viewBox="0 0 24 24"><path d="M5 6h14M12 6v13" /></svg></button>
+          <button id="toggleFill" class="on" title="Mostrar/ocultar hachuras" aria-label="Hachuras"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M4 14 14 4M10 20 20 10" /></svg></button>
+          <button id="toggleBg" title="Fundo claro/escuro" aria-label="Alternar fundo"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16z" class="solid" /></svg></button>
+        </div>
+
+        <div class="status">
+          <span id="coords">x: —  y: —</span>
+          <span id="zoomLevel"></span>
+        </div>
+
+        <div class="empty" id="empty">
+          <div class="drop-card">
+            <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M12 40h24a4 4 0 0 0 4-4V16L28 4H12a4 4 0 0 0-4 4v28a4 4 0 0 0 4 4z" /><path d="M28 4v12h12M24 22v12m0-12-5 5m5-5 5 5" /></svg>
+            <h1>Arraste um arquivo DWG aqui</h1>
+            <p>ou</p>
+            <label class="btn primary">Escolher arquivo<input id="fileInput2" type="file" accept=".dwg,.dxf" hidden /></label>
+            <p class="hint">Formatos: DWG (R13 a 2018+) e DXF. O arquivo é processado no seu navegador — nada é enviado a servidores.</p>
+          </div>
+        </div>
+
+        <div class="drop-overlay" id="dropOverlay"><div>Solte o arquivo para abrir</div></div>
+        <div class="loading" id="loading" hidden><div class="spinner"></div><span id="loadingText">Carregando…</span></div>
+      </section>
+
+      <aside class="panel" id="panel">
+        <section class="card" id="selectionCard">
+          <h2>Objeto selecionado</h2>
+          <div id="selection" class="muted">Clique em uma entidade ou dentro de um ambiente fechado para ver suas informações.</div>
+        </section>
+
+        <nav class="tabs" role="tablist">
+          <button role="tab" class="active" data-tab="summary">Resumo</button>
+          <button role="tab" data-tab="areas">Áreas</button>
+          <button role="tab" data-tab="layers">Camadas</button>
+        </nav>
+
+        <section class="tab-body" data-tab="summary">
+          <div id="summary" class="muted">Abra um arquivo para ver o resumo.</div>
+        </section>
+
+        <section class="tab-body" data-tab="areas" hidden>
+          <div class="controls">
+            <label>Unidade do desenho
+              <select id="unitSelect"></select>
+            </label>
+            <label>Camada
+              <select id="areaLayer"><option value="">Todas</option></select>
+            </label>
+            <label class="check"><input type="checkbox" id="includeBlocks" /> Incluir polígonos dentro de blocos</label>
+            <label class="check"><input type="checkbox" id="includeHatch" checked /> Incluir hachuras</label>
+          </div>
+          <div class="total" id="areaTotal"></div>
+          <div class="table-wrap">
+            <table class="areas">
+              <thead><tr><th>#</th><th>Objeto</th><th>Camada</th><th class="num">Área</th><th class="num">Perímetro</th></tr></thead>
+              <tbody id="areaRows"></tbody>
+            </table>
+          </div>
+          <button class="btn ghost" id="exportCsv" disabled>Exportar CSV</button>
+        </section>
+
+        <section class="tab-body" data-tab="layers" hidden>
+          <div id="layers" class="muted">Sem camadas.</div>
+        </section>
+      </aside>
+    </main>
+
+    <div class="toast" id="toast" role="alert" hidden></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
