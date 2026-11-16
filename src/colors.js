@@ -51,5 +51,11 @@ export function adaptToBackground(hex, darkBg) {
   const lum = 0.299 * r + 0.587 * g + 0.114 * b;
   if (darkBg && lum < 40) return '#9aa4b2';
   if (!darkBg && lum > 215) return '#1d2430';
+  if (!darkBg && lum > 130) {
+    // escurece cores claras (ciano, amarelo, verde) para contrastar com fundo claro
+    const k = 130 / lum;
+    const h = (v) => Math.round(v * k).toString(16).padStart(2, '0');
+    return '#' + h(r) + h(g) + h(b);
+  }
   return hex;
 }

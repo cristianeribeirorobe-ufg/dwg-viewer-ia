@@ -107,9 +107,11 @@ export class Viewer {
   fit(box = this.scene?.bbox, margin = 0.06) {
     if (!box) return;
     const bw = Math.max(box[2] - box[0], 1e-9), bh = Math.max(box[3] - box[1], 1e-9);
-    const s = Math.min(this.w / bw, this.h / bh) * (1 - 2 * margin);
+    const padB = 64; // espaço reservado para a barra de ferramentas flutuante
+    const h = Math.max(this.h - padB, 1);
+    const s = Math.min(this.w / bw, h / bh) * (1 - 2 * margin);
     const mx = (box[0] + box[2]) / 2 - this.origin[0], my = (box[1] + box[3]) / 2 - this.origin[1];
-    this.view = { s, ox: this.w / 2 - mx * s, oy: this.h / 2 + my * s };
+    this.view = { s, ox: this.w / 2 - mx * s, oy: h / 2 + 8 + my * s };
     this.redraw();
   }
 
@@ -142,8 +144,9 @@ export class Viewer {
     const { ctx, canvas } = this;
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = this.darkBg ? '#0f141b' : '#ffffff';
+    ctx.fillStyle = this.darkBg ? '#0b1017' : '#f8fafc';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    this._drawGrid(ctx, dpr);
     if (!this.scene || !this._batches) return;
 
     const { s, ox, oy } = this.view;
@@ -171,7 +174,7 @@ export class Viewer {
     const sel = this.selection;
     if (sel) {
       const [cx, cy] = this.origin;
-      const accent = this.darkBg ? '#38bdf8' : '#0369a1';
+      const accent = this.darkBg ? '#a78bfa' : '#4f46e5';
       if (sel.polygon) {
         const p = new Path2D();
         for (const l of sel.polygon.loops || [sel.polygon.pts]) appendPath(p, l, true, cx, cy);
@@ -196,6 +199,40 @@ export class Viewer {
       ctx.fillRect(px - 1.5, py - 1.5, 3, 3);
     }
     if (this.showText) this._drawTexts(ctx);
+  }
+
+  /** Grade de pontos em potências de 10 das unidades do desenho (acompanha o zoom). */
+  _drawGrid(ctx, dpr) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const dot = this.darkBg ? 'rgba(148,163,184,' : 'rgba(71,85,105,';
+    if (!this.scene) {
+      ctx.fillStyle = dot + '0.14)';
+      for (let x = 12; x < this.w; x += 24) for (let y = 12; y < this.h; y += 24) ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5);
+      return;
+    }
+    const { s, ox, oy } = this.view;
+    let step = Math.pow(10, Math.ceil(Math.log10(18 / s))); // espaçamento em unidades do desenho
+    if (step * s > 90) step /= 5;
+    else if (step * s > 45) step /= 2;
+    const px = step * s;
+    if (!(px > 6) || this.w / px > 400) return;
+    const [cx, cy] = this.origin;
+    const [wx0, wy1] = this.toWorld(0, 0);
+    const startX = Math.floor(wx0 / step) * step, startY = Math.ceil(wy1 / step) * step;
+    const major = step * 5;
+    for (let wx = startX; ; wx += step) {
+      const sx = ox + (wx - cx) * s;
+      if (sx > this.w + 1) break;
+      const mx = Math.abs(wx / major - Math.round(wx / major)) < 1e-6;
+      for (let wy = startY; ; wy -= step) {
+        const sy = oy - (wy - cy) * s;
+        if (sy > this.h + 1) break;
+        const big = mx && Math.abs(wy / major - Math.round(wy / major)) < 1e-6;
+        ctx.fillStyle = dot + (big ? '0.32)' : '0.13)');
+        const r = big ? 1.1 : 0.75;
+        ctx.fillRect(sx - r, sy - r, r * 2, r * 2);
+      }
+    }
   }
 
   _drawTexts(ctx) {

@@ -76,6 +76,7 @@ async function openFile(file) {
     if (!scene.items.length) toast('O arquivo foi lido, mas não há entidades visíveis no espaço do modelo.');
     $('empty').hidden = true;
     $('fileName').textContent = file.name;
+    $('filePill').classList.add('loaded');
     document.title = `${file.name} — Visualizador DWG`;
     viewer.setScene(scene);
     buildPolygonList();
@@ -130,16 +131,34 @@ $('zoomFit').onclick = () => viewer.fit();
 $('toggleText').onclick = (e) => {
   viewer.showText = !viewer.showText;
   e.currentTarget.classList.toggle('on', viewer.showText);
+  e.currentTarget.setAttribute('aria-pressed', viewer.showText);
   viewer.redraw();
 };
 $('toggleFill').onclick = (e) => {
   viewer.showFill = !viewer.showFill;
   e.currentTarget.classList.toggle('on', viewer.showFill);
+  e.currentTarget.setAttribute('aria-pressed', viewer.showFill);
   viewer.redraw();
 };
-$('toggleBg').onclick = () => {
-  viewer.setDarkBackground(!viewer.darkBg);
-  stage.classList.toggle('light', !viewer.darkBg);
+$('toggleBg').onclick = () => viewer.setDarkBackground(!viewer.darkBg);
+
+// tema da interface (claro/escuro), lembrado entre visitas
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#0a0d12' : '#eef1f6');
+  viewer.setDarkBackground(theme === 'dark');
+  try { localStorage.setItem('dwg-theme', theme); } catch {}
+}
+let savedTheme = null;
+try { savedTheme = localStorage.getItem('dwg-theme'); } catch {}
+applyTheme(savedTheme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
+$('toggleTheme').onclick = () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+
+// painel lateral recolhível
+$('togglePanel').classList.add('on');
+$('togglePanel').onclick = (e) => {
+  const hidden = document.body.classList.toggle('panel-hidden');
+  e.currentTarget.classList.toggle('on', !hidden);
 };
 window.addEventListener('keydown', (e) => {
   if (e.target.closest('input, select, textarea')) return;
@@ -155,8 +174,8 @@ viewer.onCursor = ([x, y]) => {
 viewer.onViewChange = (v) => {
   if (!state.scene) return;
   const b = state.scene.bbox;
-  const fitS = Math.min(viewer.w / (b[2] - b[0] || 1), viewer.h / (b[3] - b[1] || 1)) * 0.88;
-  $('zoomLevel').textContent = `zoom ${f0.format((v.s / fitS) * 100)}%`;
+  const fitS = Math.min(viewer.w / (b[2] - b[0] || 1), Math.max(viewer.h - 64, 1) / (b[3] - b[1] || 1)) * 0.88;
+  $('zoomLevel').textContent = `${f0.format((v.s / fitS) * 100)}%`;
 };
 viewer.onSelect = (sel) => {
   renderSelection(sel);
@@ -272,13 +291,13 @@ function renderSummary() {
   const types = Object.entries(scene.typeCount).sort((a, b) => b[1] - a[1]);
   $('summary').className = '';
   $('summary').innerHTML = `
+    <div class="highlight"><span class="label">Soma das áreas dos polígonos</span><span class="value">${fmtArea(totalArea)}</span></div>
     <div class="stats">
       <div class="stat"><div class="v">${f0.format(info.entityCount)}</div><div class="l">Entidades</div></div>
       <div class="stat"><div class="v">${f0.format(info.layers.length)}</div><div class="l">Camadas</div></div>
       <div class="stat"><div class="v">${f0.format(polys.length)}</div><div class="l">Polígonos fechados</div></div>
       <div class="stat"><div class="v">${f0.format(info.blockCount)}</div><div class="l">Blocos definidos</div></div>
     </div>
-    <div class="highlight"><span class="label">Soma das áreas dos polígonos</span><span class="value">${fmtArea(totalArea)}</span></div>
     <dl class="props">
       <dt>Arquivo</dt><dd>${esc(file.name)}</dd>
       <dt>Tamanho</dt><dd>${f2.format(file.size / 1024 / 1024)} MB</dd>
@@ -386,7 +405,7 @@ function renderLayers() {
   for (const l of layers) if (l.off || l.frozen) viewer.setLayerVisible(l.name, false);
   $('layers').className = '';
   $('layers').innerHTML = `
-    <div class="layer-tools"><button class="btn" data-all="1">Mostrar todas</button><button class="btn" data-all="0">Ocultar todas</button></div>
+    <div class="layer-tools"><button class="btn sm" data-all="1">Mostrar todas</button><button class="btn sm" data-all="0">Ocultar todas</button></div>
     ${layers.map((l) => `
       <label class="layer-row">
         <input type="checkbox" data-layer="${esc(l.name)}" ${viewer.hiddenLayers.has(l.name) ? '' : 'checked'} />
